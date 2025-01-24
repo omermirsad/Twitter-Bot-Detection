@@ -1,0 +1,57 @@
+import pandas as pd
+import json
+from openai import AzureOpenAI
+
+# Initialize Azure OpenAI client
+client = AzureOpenAI(
+    api_key="YOUR_API_KEY",
+    api_version="2023-12-01-preview",
+    azure_endpoint="https://YOUR_RESOURCE_NAME.openai.azure.com/"
+)
+
+def extract_campaign_tags(description):
+    """Use Azure OpenAI to extract campaign tags from description"""
+    try:
+        response = client.chat.completions.create(
+            model="YOUR_DEPLOYMENT_NAME",  # Replace with your deployment name
+            temperature=0,
+            messages=[
+                {"role": "system", "content": """You are an information extraction system that analyzes campaign descriptions and returns structured tags in JSON format. Extract relevant tags including campaign objective, target audience, products, offers, timeframe, channels, and geographic scope."""},
+                {"role": "user", "content": f"""Extract tags from this campaign description following the exact JSON format from the example. Return only JSON:
+
+Description: {description}
+
+JSON: """}
+            ]
+        )
+        
+        # Extract JSON from response
+        json_str = response.choices[0].message.content
+        tags = json.loads(json_str)
+        return tags
+    
+    except Exception as e:
+        print(f"Error processing description: {str(e)}")
+        return {}
+
+# Process DataFrame column
+def process_campaign_descriptions(df):
+    # Extract tags for each campaign
+    tags_list = []
+    for idx, row in df['clean_fld7'].items():
+        if pd.notna(row) and row.strip():
+            tags = extract_campaign_tags(row)
+            tags_list.append(tags)
+        else:
+            tags_list.append({})
+    
+    # Create DataFrame from tags
+    tags_df = pd.json_normalize(tags_list)
+    tags_df = tags_df.add_prefix('tags_')
+    
+    # Merge with original DataFrame
+    return df.join(tags_df)
+
+# Usage example:
+# df = pd.read_csv('your_data.csv')  # Load your DataFrame
+# processed_df = process_campaign_descriptions(df)
